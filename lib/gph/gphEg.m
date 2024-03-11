@@ -78,7 +78,10 @@ elseif strcmp(link, 'enei')
 % non edge
 elseif strcmp(link, 'non')
     A = [];
-    
+
+elseif strcmp(link, 'cos')
+    A = ps(parGph, 'val', ones(n, n));
+
 else
     error('unknown edge link type: %s', link);
 end
