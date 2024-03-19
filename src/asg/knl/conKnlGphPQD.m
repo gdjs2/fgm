@@ -130,9 +130,9 @@ elseif strcmp(alg, 'cg')
     % combine distance and angle
     KQ = exp(-(Dst + Ang) / 2);
    
-elseif strcmp(alg, 'cos')
-    KP = zeros(n1, n2);
-    KQ = ones(m1, m2);
+elseif strcmp(alg, 'cus')
+    KP = ps(parKnl, "KP");
+    KQ = ps(parKnl, "KQ");
 
 else
     error('unknown algorithm: %s', alg);

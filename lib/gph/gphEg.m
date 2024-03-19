@@ -79,7 +79,7 @@ elseif strcmp(link, 'enei')
 elseif strcmp(link, 'non')
     A = [];
 
-elseif strcmp(link, 'cos')
+elseif strcmp(link, 'cus')
     A = ps(parGph, 'val', ones(n, n));
 
 else

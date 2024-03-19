@@ -1,4 +1,7 @@
-adjMat1 = [0, 1, 1; 1, 0, 0; 1, 0, 0];
+// This is for test use only
+
+function asg = customizedInterface(adjMat1, adjMat2, nodeAffinity, edgeAffinity)
+
 Pt1 = [1, 1, 1; 1, 1, 1];
 par1 = st('link', 'cos', 'val', adjMat1);
 g1 = newGphA(Pt1, par1);
