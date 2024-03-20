@@ -1,56 +1,57 @@
-import matlab.engine
+# import matlab.engine
+import pickle
 import torch
 import time
 
 ADDPATH_PATH = "./addPath.m"
 
 # start matlab engine and add path
-eng = matlab.engine.start_matlab()
-eng.run(ADDPATH_PATH, nargout=0)
+# eng = matlab.engine.start_matlab()
+# eng.run(ADDPATH_PATH, nargout=0)
 
-def convertAffinity(affinity_mat: torch.Tensor, eg1, eg2, n1, n2):  
-    # nodeAffinity = eng.zeros(n1, n2)
-    # start_time = time.time()
-    # for i in range(n1):
-    #     for j in range(n2):
-    #         nodeAffinity[i][j] = affinity_mat[i][j][i][j].item()
-    # print("Time: ", time.time() - start_time)
-
-    start_time = time.time()
-    # nodeAffinity = matlab.double([[affinity_mat[i][j][i][j].item() for j in range(n2)] for i in range(n1)])
-    nodeAffinity = eng.ones(n1, n2)
-    # nodeAffinity = torch.ones(n1, n2).tolist()
-    print("Time: ", time.time() - start_time)
+def getEdges(adjMat: torch.Tensor):
+    upperTriangle = torch.triu(adjMat, diagonal=1).nonzero()
+    sortedIndices = upperTriangle[upperTriangle[:, 1].argsort(stable=True)]
+    reversedIndices = torch.flip(sortedIndices, [1])
+    return torch.cat((sortedIndices, reversedIndices), dim = 0)
     
-    m1 = int(eng.size(eg1, 2))
-    m2 = int(eng.size(eg2, 2))
-    # edgeAffinity = eng.zeros(m1, m2)
 
-    for i in range(m1):
-        for j in range(m2):
-            edgeAffinity[i][j] = affinity_mat[int(eg1[0][i])-1][int(eg2[0][j])-1][int(eg1[1][i])-1][int(eg2[1][j])-1].item()
+# def convertAffinity(affinity_mat: torch.Tensor, eg1, eg2, n1, n2):  
+#     # nodeAffinity = eng.zeros(n1, n2)
+#     # start_time = time.time()
+#     # for i in range(n1):
+#     #     for j in range(n2):
+#     #         nodeAffinity[i][j] = affinity_mat[i][j][i][j].item()
+#     # print("Time: ", time.time() - start_time)
+
+#     start_time = time.time()
+#     # nodeAffinity = matlab.double([[affinity_mat[i][j][i][j].item() for j in range(n2)] for i in range(n1)])
+#     nodeAffinity = eng.ones(n1, n2)
+#     # nodeAffinity = torch.ones(n1, n2).tolist()
+#     print("Time: ", time.time() - start_time)
+    
+#     m1 = int(eng.size(eg1, 2))
+#     m2 = int(eng.size(eg2, 2))
+#     # edgeAffinity = eng.zeros(m1, m2)
+
+#     for i in range(m1):
+#         for j in range(m2):
+#             edgeAffinity[i][j] = affinity_mat[int(eg1[0][i])-1][int(eg2[0][j])-1][int(eg1[1][i])-1][int(eg2[1][j])-1].item()
             
-    start_time = time.time()
-    # edgeAffinity = matlab.double([[affinity_mat[int(eg1[0][i])-1][int(eg2[0][j])-1][int(eg1[1][i])-1][int(eg2[1][j])-1].item() for j in range(m2)] for i in range(m1)])
-    edgeAffinity = eng.ones(m1, m2)
-    # edgeAffinity = torch.ones(m1, m2).tolist()
-    print("Time: ", time.time() - start_time)
+#     start_time = time.time()
+#     # edgeAffinity = matlab.double([[affinity_mat[int(eg1[0][i])-1][int(eg2[0][j])-1][int(eg1[1][i])-1][int(eg2[1][j])-1].item() for j in range(m2)] for i in range(m1)])
+#     edgeAffinity = eng.ones(m1, m2)
+#     # edgeAffinity = torch.ones(m1, m2).tolist()
+#     print("Time: ", time.time() - start_time)
     
-    return nodeAffinity, edgeAffinity
+#     return nodeAffinity, edgeAffinity
 
 # Python interface for fgm
-def costomizedInterface(adjMat1: torch.Tensor, adjMat2: torch.Tensor, affinity_mat: torch.Tensor, ct: list):
+def costomizedInterface(adjMat1: torch.Tensor, adjMat2: torch.Tensor, nodeAffinity: torch.Tensor, edgeAffinity: torch.Tensor, ct: list = None):
 
     # convert torch tensor to matlab double
-    adjMat1 = matlab.double(adjMat1.tolist())
-    adjMat2 = matlab.double(adjMat2.tolist())
-
-    n1 = adjMat1.size[0]
-    n2 = adjMat2.size[0]
-
-    # generate empty node features
-    pt1 = matlab.double([[0 for _ in range(n1)] for _ in range(2)])
-    pt2 = matlab.double([[0 for _ in range(n2)] for _ in range(2)])
+    adjMat1, adjMat2 = matlab.double(adjMat1.tolist()), matlab.double(adjMat2.tolist())
+    n1, n2 = adjMat1.size[0], adjMat2.size[0]
 
     # generate parameters
     par1 = eng.st("link", "cus", "val", adjMat1)
@@ -61,7 +62,7 @@ def costomizedInterface(adjMat1: torch.Tensor, adjMat2: torch.Tensor, affinity_m
     g2 = eng.newGphA(pt2, par2, nargout=1)
 
     # convert affinities to fgm format
-    KP, KQ = convertAffinity(affinity_mat, g1["Eg"], g2["Eg"], n1, n2)
+    KP, KQ = matlab.double(nodeAffinity.tolist()), matlab.double(edgeAffinity.tolist())
 
     # set parameters for affinity gen
     parKnl = eng.st("alg", "cos", "KP", KP, "KQ", KQ)
@@ -77,46 +78,15 @@ def costomizedInterface(adjMat1: torch.Tensor, adjMat2: torch.Tensor, affinity_m
     print("Time: ", time.time() - start_time)
     return(list(asg['X']))
 
+def loadData(dataFile):
+    with open(dataFile, 'rb') as f:
+        return pickle.load(f)
+        
+DIFFUTILS_DATA = "./data/diffutils.dat"
+
 if __name__ == "__main__":
-    NODES_NUM = 100
-    M_gt = torch.zeros((NODES_NUM, NODES_NUM))
-    M_gt[torch.arange(0, NODES_NUM, dtype=torch.int64), torch.randperm(NODES_NUM)] = 1
-
-    G = torch.rand(NODES_NUM, NODES_NUM)
-    G = (G + G.t() > 1.2).float()
-    # G = torch.tensor([
-    #     [0, 1, 0, 0, 0],
-    #     [1, 0, 1, 0, 0],
-    #     [0, 1, 0, 1, 1],
-    #     [0, 0, 1, 0, 0],
-    #     [0, 0, 1, 0, 0]
-    # ]).float()
-
-    torch.diagonal(G).fill_(0)
-    g = torch.mm(torch.mm(M_gt.t(), G), M_gt)
-
-    edges1 = torch.triu(G).nonzero()
-    edges2 = torch.triu(g).nonzero()
-
-    print(edges1.size())
-
-    affinity = torch.sparse_coo_tensor((NODES_NUM, NODES_NUM, NODES_NUM, NODES_NUM), dtype=torch.float32)
-    index = []
-    for i in range(NODES_NUM):
-        for j in range(NODES_NUM):
-            index.append((i, j, i, j))
-    # for e1 in edges1:
-    #     for e2 in edges2:
-    #         index.append((e1[0], e2[0], e1[1], e2[1]))
-    #         index.append((e1[1], e2[1], e1[0], e2[0]))
-    #         index.append((e1[0], e2[1], e1[1], e2[0]))
-    #         index.append((e1[1], e2[0], e1[0], e2[1]))
-    affinity = torch.sparse_coo_tensor(torch.tensor(index).t(), torch.ones(len(index)), (NODES_NUM, NODES_NUM, NODES_NUM, NODES_NUM))
-
-    result = costomizedInterface(G, g, affinity, None)
-    print(torch.equal(torch.tensor(result), M_gt))
-    # print(G)
-    # print(g)
-    # print(affinity)
-    # print(result)
-    # print(M_gt)
+    nodeAffinity, edgeAffinity, adjMat1, adjMat2 = loadData(DIFFUTILS_DATA)
+    print(nodeAffinity.shape)
+    print(edgeAffinity.shape)
+    print(adjMat1.shape)
+    print(adjMat2.shape)
